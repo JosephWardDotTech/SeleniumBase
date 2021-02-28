@@ -2,6 +2,7 @@
 This module contains methods for running website tours.
 These helper methods SHOULD NOT be called directly from tests.
 """
+import os
 import re
 import time
 from selenium.webdriver.common.by import By
@@ -10,14 +11,7 @@ from seleniumbase.core import style_sheet
 from seleniumbase.fixtures import constants
 from seleniumbase.fixtures import js_utils
 from seleniumbase.fixtures import page_actions
-
-
-def raise_unable_to_load_jquery_exception(driver):
-    """ The most-likely reason for jQuery not loading on web pages. """
-    raise Exception(
-        '''Unable to load jQuery on "%s" due to a possible violation '''
-        '''of the website's Content Security Policy '''
-        '''directive. ''' % driver.current_url)
+EXPORTED_TOURS_FOLDER = constants.Tours.EXPORTED_TOURS_FOLDER
 
 
 def activate_bootstrap(driver):
@@ -48,13 +42,58 @@ def activate_bootstrap(driver):
                 return
             except Exception:
                 time.sleep(0.15)
-    raise_unable_to_load_jquery_exception(driver)
+    js_utils.raise_unable_to_load_jquery_exception(driver)
 
 
 def is_bootstrap_activated(driver):
     verify_script = ("""// Verify Bootstrap Tour activated
                      var tour2 = new Tour({
                      });""")
+    try:
+        driver.execute_script(verify_script)
+        return True
+    except Exception:
+        return False
+
+
+def activate_driverjs(driver):
+    """ Allows you to use DriverJS Tours with SeleniumBase
+        https://kamranahmed.info/driver.js/
+    """
+    backdrop_style = style_sheet.dt_backdrop_style
+    driverjs_css = constants.DriverJS.MIN_CSS
+    driverjs_js = constants.DriverJS.MIN_JS
+
+    verify_script = ("""// Verify DriverJS activated
+                     var driverjs2 = Driver.name;
+                     """)
+
+    activate_bootstrap(driver)
+    js_utils.wait_for_ready_state_complete(driver)
+    js_utils.wait_for_angularjs(driver)
+    js_utils.add_css_style(driver, backdrop_style)
+    for x in range(4):
+        js_utils.activate_jquery(driver)
+        js_utils.add_css_link(driver, driverjs_css)
+        js_utils.add_js_link(driver, driverjs_js)
+        time.sleep(0.1)
+        for x in range(int(settings.MINI_TIMEOUT * 2.0)):
+            # DriverJS needs a small amount of time to load & activate.
+            try:
+                driver.execute_script(verify_script)
+                js_utils.wait_for_ready_state_complete(driver)
+                js_utils.wait_for_angularjs(driver)
+                time.sleep(0.05)
+                return
+            except Exception:
+                time.sleep(0.15)
+    js_utils.raise_unable_to_load_jquery_exception(driver)
+
+
+def is_driverjs_activated(driver):
+    verify_script = ("""// Verify DriverJS activated
+                     var driverjs2 = Driver.name;
+                     """)
     try:
         driver.execute_script(verify_script)
         return True
@@ -93,7 +132,7 @@ def activate_hopscotch(driver):
                 return
             except Exception:
                 time.sleep(0.15)
-    raise_unable_to_load_jquery_exception(driver)
+    js_utils.raise_unable_to_load_jquery_exception(driver)
 
 
 def is_hopscotch_activated(driver):
@@ -136,7 +175,7 @@ def activate_introjs(driver):
                 return
             except Exception:
                 time.sleep(0.15)
-    raise_unable_to_load_jquery_exception(driver)
+    js_utils.raise_unable_to_load_jquery_exception(driver)
 
 
 def is_introjs_activated(driver):
@@ -196,7 +235,7 @@ def activate_shepherd(driver):
                 return
             except Exception:
                 time.sleep(0.15)
-    raise_unable_to_load_jquery_exception(driver)
+    js_utils.raise_unable_to_load_jquery_exception(driver)
 
 
 def is_shepherd_activated(driver):
@@ -239,7 +278,7 @@ def play_shepherd_tour(driver, tour_steps, msg_dur, name=None, interval=0):
         except Exception:
             js_utils.post_messenger_error_message(
                 driver, "Tour Error: {'%s'} was not found!" % selector,
-                msg_dur, duration=settings.SMALL_TIMEOUT)
+                msg_dur)
             raise Exception(
                 "Tour Error: {'%s'} was not found! "
                 "Exiting due to failure on first tour step!"
@@ -308,7 +347,7 @@ def play_shepherd_tour(driver, tour_steps, msg_dur, name=None, interval=0):
                     driver.execute_script(remove_script)
                     js_utils.post_messenger_error_message(
                         driver, "Tour Error: {'%s'} was not found!" % selector,
-                        msg_dur, duration=settings.SMALL_TIMEOUT)
+                        msg_dur)
                     time.sleep(0.1)
                 driver.execute_script("Shepherd.activeTour.next()")
                 if autoplay:
@@ -362,7 +401,7 @@ def play_bootstrap_tour(
         except Exception:
             js_utils.post_messenger_error_message(
                 driver, "Tour Error: {'%s'} was not found!" % selector,
-                msg_dur, duration=settings.SMALL_TIMEOUT)
+                msg_dur)
             raise Exception(
                 "Tour Error: {'%s'} was not found! "
                 "Exiting due to failure on first tour step!"
@@ -394,6 +433,118 @@ def play_bootstrap_tour(
                 else:
                     page_actions.wait_for_element_present(
                         driver, ".tour-tour", by=By.CSS_SELECTOR, timeout=0.4)
+                    result = False
+                if result is False:
+                    time.sleep(0.1)
+                    continue
+                else:
+                    return
+            except Exception:
+                tour_on = False
+                time.sleep(0.1)
+
+
+def play_driverjs_tour(
+        driver, tour_steps, browser, msg_dur, name=None, interval=0):
+    """ Plays a DriverJS tour on the current website. """
+    instructions = ""
+    for tour_step in tour_steps[name]:
+        instructions += tour_step
+    instructions += (
+        """]
+        );
+        // Start the tour!
+        tour.start();
+        $tour = tour;""")
+    autoplay = False
+    if interval and interval > 0:
+        autoplay = True
+        interval = float(interval)
+        if interval < 0.5:
+            interval = 0.5
+
+    if not is_driverjs_activated(driver):
+        activate_driverjs(driver)
+
+    if len(tour_steps[name]) > 1:
+        try:
+            if "element: " in tour_steps[name][1]:
+                selector = re.search(
+                    r"[\S\s]+element: '([\S\s]+)',[\S\s]+popover: {",
+                    tour_steps[name][1]).group(1)
+                selector = selector.replace('\\', '').replace(':first', '')
+                page_actions.wait_for_element_present(
+                    driver, selector, by=By.CSS_SELECTOR,
+                    timeout=settings.SMALL_TIMEOUT)
+            else:
+                selector = "html"
+        except Exception:
+            js_utils.post_messenger_error_message(
+                driver, "Tour Error: {'%s'} was not found!" % selector,
+                msg_dur)
+            raise Exception(
+                "Tour Error: {'%s'} was not found! "
+                "Exiting due to failure on first tour step!"
+                "" % selector)
+
+    driver.execute_script(instructions)
+    driver.execute_script(
+        'document.querySelector(".driver-next-btn").focus();')
+    tour_on = True
+    if autoplay:
+        start_ms = time.time() * 1000.0
+        stop_ms = start_ms + (interval * 1000.0)
+        latest_step = 0
+    while tour_on:
+        try:
+            time.sleep(0.01)
+            if browser != "firefox":
+                result = not driver.execute_script(
+                    "return $tour.isActivated")
+            else:
+                page_actions.wait_for_element_present(
+                    driver, "#driver-popover-item",
+                    by=By.CSS_SELECTOR, timeout=0.4)
+                result = False
+        except Exception:
+            tour_on = False
+            result = None
+        if result is False:
+            tour_on = True
+            driver.execute_script(
+                'document.querySelector(".driver-next-btn").focus();')
+            if autoplay:
+                try:
+                    current_step = driver.execute_script(
+                        "return $tour.currentStep")
+                except Exception:
+                    continue
+                if current_step != latest_step:
+                    latest_step = current_step
+                    start_ms = time.time() * 1000.0
+                    stop_ms = start_ms + (interval * 1000.0)
+                now_ms = time.time() * 1000.0
+                if now_ms >= stop_ms:
+                    if current_step == latest_step:
+                        driver.execute_script("$tour.moveNext()")
+                        try:
+                            latest_step = driver.execute_script(
+                                "return $tour.currentStep")
+                            start_ms = time.time() * 1000.0
+                            stop_ms = start_ms + (interval * 1000.0)
+                        except Exception:
+                            pass
+                        continue
+        else:
+            try:
+                time.sleep(0.01)
+                if browser != "firefox":
+                    result = not driver.execute_script(
+                        "return $tour.isActivated")
+                else:
+                    page_actions.wait_for_element_present(
+                        driver, "#driver-popover-item",
+                        by=By.CSS_SELECTOR, timeout=0.4)
                     result = False
                 if result is False:
                     time.sleep(0.1)
@@ -442,7 +593,7 @@ def play_hopscotch_tour(
         except Exception:
             js_utils.post_messenger_error_message(
                 driver, "Tour Error: {'%s'} was not found!" % selector,
-                msg_dur, duration=settings.SMALL_TIMEOUT)
+                msg_dur)
             raise Exception(
                 "Tour Error: {'%s'} was not found! "
                 "Exiting due to failure on first tour step!"
@@ -483,7 +634,7 @@ def play_hopscotch_tour(
                 now_ms = time.time() * 1000.0
                 if now_ms >= stop_ms:
                     if current_step == latest_step:
-                        driver.execute_script("return $tour.nextStep()")
+                        driver.execute_script("$tour.nextStep()")
                         try:
                             latest_step = driver.execute_script(
                                 "return $tour.getCurrStepNum()")
@@ -561,7 +712,7 @@ def play_introjs_tour(
         except Exception:
             js_utils.post_messenger_error_message(
                 driver, "Tour Error: {'%s'} was not found!" % selector,
-                msg_dur, duration=settings.SMALL_TIMEOUT)
+                msg_dur)
             raise Exception(
                 "Tour Error: {'%s'} was not found! "
                 "Exiting due to failure on first tour step!"
@@ -601,7 +752,10 @@ def play_introjs_tour(
                 now_ms = time.time() * 1000.0
                 if now_ms >= stop_ms:
                     if current_step == latest_step:
-                        driver.execute_script("return $tour.nextStep()")
+                        try:
+                            driver.execute_script("$tour.nextStep()")
+                        except Exception:
+                            driver.execute_script("$tour.exit()")
                         try:
                             latest_step = driver.execute_script(
                                 "return $tour._currentStep")
@@ -631,7 +785,7 @@ def play_introjs_tour(
                 time.sleep(0.1)
 
 
-def export_tour(tour_steps, name=None, filename="my_tour.js"):
+def export_tour(tour_steps, name=None, filename="my_tour.js", url=None):
     """ Exports a tour as a JS file.
         It will include necessary resources as well, such as jQuery.
         You'll be able to copy the tour directly into the Console of
@@ -642,10 +796,14 @@ def export_tour(tour_steps, name=None, filename="my_tour.js"):
         raise Exception("Tour {%s} does not exist!" % name)
     if not filename.endswith('.js'):
         raise Exception('Tour file must end in ".js"!')
+    if not url:
+        url = "data:,"
 
     tour_type = None
     if "Bootstrap" in tour_steps[name][0]:
         tour_type = "bootstrap"
+    elif "DriverJS" in tour_steps[name][0]:
+        tour_type = "driverjs"
     elif "Hopscotch" in tour_steps[name][0]:
         tour_type = "hopscotch"
     elif "IntroJS" in tour_steps[name][0]:
@@ -656,6 +814,10 @@ def export_tour(tour_steps, name=None, filename="my_tour.js"):
         raise Exception('Unknown tour type!')
 
     instructions = (
+        '''////////  Load Tour Start Page (if not there now)  ////////\n\n'''
+        '''if (window.location.href != "%s") {\n'''
+        '''    window.location.href="%s";\n'''
+        '''}\n\n'''
         '''////////  Resources  ////////\n\n'''
         '''function injectCSS(css_link) {'''
         '''var head = document.getElementsByTagName("head")[0];'''
@@ -682,7 +844,7 @@ def export_tour(tour_steps, name=None, filename="my_tour.js"):
         '''style.type = "text/css";'''
         '''style.appendChild(document.createTextNode(css));'''
         '''head.appendChild(style);'''
-        '''};\n''')
+        '''};\n''' % (url, url))
 
     if tour_type == "bootstrap":
         jquery_js = constants.JQuery.MIN_JS
@@ -691,11 +853,26 @@ def export_tour(tour_steps, name=None, filename="my_tour.js"):
         backdrop_style = style_sheet.bt_backdrop_style
         backdrop_style = backdrop_style.replace('\n', '')
         backdrop_style = js_utils.escape_quotes_if_needed(backdrop_style)
-        instructions += 'injectJS("%s");' % jquery_js
-        instructions += '\n\n////////  Resources - Load 2  ////////\n\n'
+        instructions += 'injectJS("%s");\n' % jquery_js
+        instructions += '\n'
+        instructions += 'function loadResources() { '
+        instructions += 'if ( typeof jQuery !== "undefined" ) {\n'
         instructions += 'injectCSS("%s");\n' % bootstrap_tour_css
         instructions += 'injectStyle("%s");\n' % backdrop_style
         instructions += 'injectJS("%s");' % bootstrap_tour_js
+        instructions += '} else { window.setTimeout("loadResources();",100); '
+        instructions += '} }\n'
+        instructions += 'loadResources()'
+
+    elif tour_type == "driverjs":
+        driverjs_css = constants.DriverJS.MIN_CSS
+        driverjs_js = constants.DriverJS.MIN_JS
+        backdrop_style = style_sheet.dt_backdrop_style
+        backdrop_style = backdrop_style.replace('\n', '')
+        backdrop_style = js_utils.escape_quotes_if_needed(backdrop_style)
+        instructions += 'injectCSS("%s");\n' % driverjs_css
+        instructions += 'injectStyle("%s");\n' % backdrop_style
+        instructions += 'injectJS("%s");' % driverjs_js
 
     elif tour_type == "hopscotch":
         hopscotch_css = constants.Hopscotch.MIN_CSS
@@ -729,8 +906,10 @@ def export_tour(tour_steps, name=None, filename="my_tour.js"):
         backdrop_style = js_utils.escape_quotes_if_needed(backdrop_style)
         instructions += 'injectCSS("%s");\n' % spinner_css
         instructions += 'injectJS("%s");\n' % jquery_js
-        instructions += 'injectJS("%s");' % tether_js
-        instructions += '\n\n////////  Resources - Load 2  ////////\n\n'
+        instructions += 'injectJS("%s");\n' % tether_js
+        instructions += '\n'
+        instructions += 'function loadResources() { '
+        instructions += 'if ( typeof jQuery !== "undefined" ) {\n'
         instructions += 'injectCSS("%s");' % sh_theme_arrows_css
         instructions += 'injectCSS("%s");' % sh_theme_arrows_fix_css
         instructions += 'injectCSS("%s");' % sh_theme_default_css
@@ -738,9 +917,28 @@ def export_tour(tour_steps, name=None, filename="my_tour.js"):
         instructions += 'injectCSS("%s");' % sh_theme_sq_css
         instructions += 'injectCSS("%s");\n' % sh_theme_sq_dark_css
         instructions += 'injectStyle("%s");\n' % backdrop_style
-        instructions += 'injectJS("%s");' % shepherd_js
+        instructions += 'injectJS("%s");\n' % shepherd_js
+        instructions += '} else { window.setTimeout("loadResources();",100); '
+        instructions += '} }\n'
+        instructions += 'loadResources()'
 
     instructions += '\n\n////////  Tour Code  ////////\n\n'
+    if tour_type == "bootstrap":
+        instructions += 'function loadTour() { '
+        instructions += 'if ( typeof Tour !== "undefined" ) {\n'
+    elif tour_type == "driverjs":
+        instructions += 'function loadTour() { '
+        instructions += 'if ( typeof Driver !== "undefined" ) {\n'
+    elif tour_type == "hopscotch":
+        instructions += 'function loadTour() { '
+        instructions += 'if ( typeof hopscotch !== "undefined" ) {\n'
+    elif tour_type == "introjs":
+        instructions += 'function loadTour() { '
+        instructions += 'if ( typeof introJs !== "undefined" ) {\n'
+    elif tour_type == "shepherd":
+        instructions += 'function loadTour() { '
+        instructions += 'if ( typeof Shepherd !== "undefined" ) {\n'
+
     for tour_step in tour_steps[name]:
         instructions += tour_step
 
@@ -752,16 +950,21 @@ def export_tour(tour_steps, name=None, filename="my_tour.js"):
             // Start the tour
             tour.start();
             $tour = tour;
-            $tour.restart();\n
-            """)
+            $tour.restart();\n""")
+    elif tour_type == "driverjs":
+        instructions += (
+            """]
+            );
+            // Start the tour!
+            tour.start();
+            $tour = tour;\n""")
     elif tour_type == "hopscotch":
         instructions += (
             """]
             };
             // Start the tour!
             hopscotch.startTour(tour);
-            $tour = hopscotch;\n
-            """)
+            $tour = hopscotch;\n""")
     elif tour_type == "introjs":
         instructions += (
             """]
@@ -777,19 +980,29 @@ def export_tour(tour_steps, name=None, filename="my_tour.js"):
             intro.start();
             $tour = intro;
             };
-            startIntro();\n
-            """)
+            startIntro();\n""")
     elif tour_type == "shepherd":
         instructions += (
             """
             tour.start();
-            $tour = tour;\n
-            """)
+            $tour = tour;\n""")
     else:
         pass
+    instructions += '\n} else { window.setTimeout("loadTour();",100); } '
+    instructions += '}\n'
+    instructions += 'loadTour()\n'
 
+    exported_tours_folder = EXPORTED_TOURS_FOLDER
+    if exported_tours_folder.endswith("/"):
+        exported_tours_folder = exported_tours_folder[:-1]
+    if not os.path.exists(exported_tours_folder):
+        try:
+            os.makedirs(exported_tours_folder)
+        except Exception:
+            pass
     import codecs
-    out_file = codecs.open(filename, "w+")
+    file_path = exported_tours_folder + "/" + filename
+    out_file = codecs.open(file_path, "w+", encoding="utf-8")
     out_file.writelines(instructions)
     out_file.close()
-    print('\n>>> [%s] was saved!\n' % filename)
+    print('\n>>> [%s] was saved!\n' % file_path)

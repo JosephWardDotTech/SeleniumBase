@@ -1,10 +1,13 @@
 # SeleniumBase Docker Image
-FROM ubuntu:17.10
+FROM ubuntu:18.04
 
 #=======================================
 # Install Python and Basic Python Tools
 #=======================================
-RUN apt-get update && apt-get install -y python python-pip python-setuptools python-dev python-distribute
+RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update
+RUN apt-get install -y python3 python3-pip python3-setuptools python3-dev python-distribute
+RUN alias python=python3
+RUN echo "alias python=python3" >> ~/.bashrc
 
 #=================================
 # Install Bash Command Line Tools
@@ -20,24 +23,6 @@ RUN apt-get -qy --no-install-recommends install \
     xvfb \
   && rm -rf /var/lib/apt/lists/*
 
-#========================================
-# Add normal user with passwordless sudo
-#========================================
-#RUN sudo useradd seluser --shell /bin/bash --create-home \
-#  && sudo usermod -a -G sudo seluser \
-#  && echo 'ALL ALL = (ALL) NOPASSWD: ALL' >> /etc/sudoers
-
-#======================
-# Install Chromedriver
-#======================
-RUN CHROMEDRIVER_VERSION=`curl -sS chromedriver.storage.googleapis.com/LATEST_RELEASE` && \
-    mkdir -p /opt/chromedriver-$CHROMEDRIVER_VERSION && \
-    curl -sS -o /tmp/chromedriver_linux64.zip http://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip && \
-    unzip -qq /tmp/chromedriver_linux64.zip -d /opt/chromedriver-$CHROMEDRIVER_VERSION && \
-    rm /tmp/chromedriver_linux64.zip && \
-    chmod +x /opt/chromedriver-$CHROMEDRIVER_VERSION/chromedriver && \
-    ln -fs /opt/chromedriver-$CHROMEDRIVER_VERSION/chromedriver /usr/local/bin/chromedriver
-
 #================
 # Install Chrome
 #================
@@ -46,13 +31,6 @@ RUN curl -sS -o - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-ke
     apt-get -yqq update && \
     apt-get -yqq install google-chrome-stable && \
     rm -rf /var/lib/apt/lists/*
-
-#==================
-# Configure Chrome
-#==================
-RUN dpkg-divert --add --rename --divert /opt/google/chrome/google-chrome.real /opt/google/chrome/google-chrome && \
-    echo "#!/bin/bash\nexec /opt/google/chrome/google-chrome.real --disable-setuid-sandbox --no-sandbox \"\$@\"" > /opt/google/chrome/google-chrome && \
-    chmod 755 /opt/google/chrome/google-chrome
 
 #=================
 # Install Firefox
@@ -67,15 +45,6 @@ RUN apt-get -qy --no-install-recommends install \
   && ln -s /opt/firefox/firefox /usr/bin/firefox \
   && rm -f /tmp/firefox-esr.tar.bz2
 
-#===================
-# Install PhantomJS
-#===================
-# RUN cd /usr/local/share && wget https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1-linux-x86_64.tar.bz2
-# RUN cd /usr/local/share && tar xjf phantomjs-2.1.1-linux-x86_64.tar.bz2
-# RUN ln -s /usr/local/share/phantomjs-2.1.1-linux-x86_64/bin/phantomjs /usr/local/share/phantomjs
-# RUN ln -s /usr/local/share/phantomjs-2.1.1-linux-x86_64/bin/phantomjs /usr/local/bin/phantomjs
-# RUN ln -s /usr/local/share/phantomjs-2.1.1-linux-x86_64/bin/phantomjs /usr/bin/phantomjs
-
 #===========================
 # Configure Virtual Display
 #===========================
@@ -85,6 +54,20 @@ RUN Xvfb -ac :99 -screen 0 1280x1024x16 > /dev/null 2>&1 &
 RUN export DISPLAY=:99
 RUN exec "$@"
 
+#=======================
+# Update Python Version
+#=======================
+RUN apt-get update -y
+RUN apt-get -qy --no-install-recommends install python3.8
+RUN rm /usr/bin/python3
+RUN ln -s python3.8 /usr/bin/python3
+
+#=============================================
+# Allow Special Characters in Python Programs
+#=============================================
+RUN export PYTHONIOENCODING=utf8
+RUN echo "export PYTHONIOENCODING=utf8" >> ~/.bashrc
+
 #=====================
 # Set up SeleniumBase
 #=====================
@@ -93,10 +76,15 @@ COPY examples /SeleniumBase/examples/
 COPY integrations /SeleniumBase/integrations/
 COPY requirements.txt /SeleniumBase/requirements.txt
 COPY setup.py /SeleniumBase/setup.py
-RUN pip install --upgrade pip
-RUN pip install --upgrade setuptools
-RUN cd /SeleniumBase && ls && pip install -r requirements.txt --upgrade
-RUN cd /SeleniumBase && python setup.py develop
+RUN find -name '*.pyc' -delete
+RUN find -name __pycache__ -delete
+RUN pip3 install --upgrade pip
+RUN pip3 install --upgrade setuptools
+RUN pip3 install --upgrade setuptools-scm
+RUN cd /SeleniumBase && ls && pip3 install -r requirements.txt --upgrade
+RUN cd /SeleniumBase && python3 setup.py develop
+RUN seleniumbase install chromedriver
+RUN seleniumbase install geckodriver
 
 #==========================================
 # Create entrypoint and grab example tests

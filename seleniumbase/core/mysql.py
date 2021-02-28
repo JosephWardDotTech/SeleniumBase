@@ -2,8 +2,11 @@
 Wrapper for MySQL DB functions to make life easier.
 """
 
+import sys
 import time
-from seleniumbase.core import mysql_conf as conf
+from seleniumbase import config as sb_config
+from seleniumbase.config import settings
+from seleniumbase.core import settings_parser
 
 
 class DatabaseManager():
@@ -13,20 +16,46 @@ class DatabaseManager():
 
     def __init__(self, database_env='test', conf_creds=None):
         """
-        Gets database information from mysql_conf.py and creates a connection.
+        Create a connection to the MySQL DB.
         """
-        import MySQLdb
-        db_server, db_user, db_pass, db_schema = \
-            conf.APP_CREDS[conf.Apps.TESTCASE_REPOSITORY][database_env]
+        import pymysql
+        db_server = settings.DB_HOST
+        db_port = settings.DB_PORT
+        db_user = settings.DB_USERNAME
+        db_pass = settings.DB_PASSWORD
+        db_schema = settings.DB_SCHEMA
+        if hasattr(sb_config, "settings_file") and sb_config.settings_file:
+            override = settings_parser.set_settings(sb_config.settings_file)
+            if "DB_HOST" in override.keys():
+                db_server = override['DB_HOST']
+            if "DB_PORT" in override.keys():
+                db_port = override['DB_PORT']
+            if "DB_USERNAME" in override.keys():
+                db_user = override['DB_USERNAME']
+            if "DB_PASSWORD" in override.keys():
+                db_pass = override['DB_PASSWORD']
+            if "DB_SCHEMA" in override.keys():
+                db_schema = override['DB_SCHEMA']
         retry_count = 3
         backoff = 1.2  # Time to wait (in seconds) between retries.
         count = 0
         while count < retry_count:
             try:
-                self.conn = MySQLdb.connect(host=db_server,
-                                            user=db_user,
-                                            passwd=db_pass,
-                                            db=db_schema)
+                if sys.version_info[0] == 3 and sys.version_info[1] >= 6 or (
+                        sys.version_info[0] > 3):
+                    # PyMySQL 1.0.0 or above renamed the variables.
+                    self.conn = pymysql.connect(host=db_server,
+                                                port=db_port,
+                                                user=db_user,
+                                                password=db_pass,
+                                                database=db_schema)
+                else:
+                    # PyMySQL 0.10.1 for Python 2.7 and Python 3.5
+                    self.conn = pymysql.connect(host=db_server,
+                                                port=db_port,
+                                                user=db_user,
+                                                passwd=db_pass,
+                                                db=db_schema)
                 self.conn.autocommit(True)
                 self.cursor = self.conn.cursor()
                 return

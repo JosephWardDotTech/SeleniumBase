@@ -3,6 +3,7 @@ You can use this as a boilerplate for your test framework.
 Define your customized library methods in a master class like this.
 Then have all your test classes inherit it.
 BaseTestCase will inherit SeleniumBase methods from BaseCase.
+With Python 3, simplify "super(...)" to super().setUp() and super().tearDown()
 '''
 
 from seleniumbase import BaseCase
@@ -12,10 +13,18 @@ class BaseTestCase(BaseCase):
 
     def setUp(self):
         super(BaseTestCase, self).setUp()
-        # Add custom setUp code for your tests AFTER the super().setUp()
+        # <<< Run custom setUp() code for tests AFTER the super().setUp() >>>
 
     def tearDown(self):
-        # Add custom tearDown code for your tests BEFORE the super().tearDown()
+        self.save_teardown_screenshot()
+        if self.has_exception():
+            # <<< Run custom code if the test failed. >>>
+            pass
+        else:
+            # <<< Run custom code if the test passed. >>>
+            pass
+        # (Wrap unreliable tearDown() code in a try/except block.)
+        # <<< Run custom tearDown() code BEFORE the super().tearDown() >>>
         super(BaseTestCase, self).tearDown()
 
     def login(self):
@@ -39,4 +48,7 @@ class MyTests(BaseTestCase):
     def test_example(self):
         self.login()
         self.example_method()
+        self.type("input", "Name")
+        self.click("form button")
+        ...
 '''

@@ -2,6 +2,26 @@ import codecs
 import os
 import subprocess
 import sys
+from seleniumbase import drivers  # webdriver storage folder for SeleniumBase
+DRIVER_DIR = os.path.dirname(os.path.realpath(drivers.__file__))
+# Make sure that the SeleniumBase DRIVER_DIR is at the top of the System PATH
+# (Changes to the System PATH with os.environ only last during the test run)
+if not os.environ["PATH"].startswith(DRIVER_DIR):
+    # Remove existing SeleniumBase DRIVER_DIR from System PATH if present
+    os.environ["PATH"] = os.environ["PATH"].replace(DRIVER_DIR, "")
+    # If two path separators are next to each other, replace with just one
+    os.environ["PATH"] = os.environ["PATH"].replace(
+        os.pathsep + os.pathsep, os.pathsep)
+    # Put the SeleniumBase DRIVER_DIR at the beginning of the System PATH
+    os.environ["PATH"] = DRIVER_DIR + os.pathsep + os.environ["PATH"]
+
+
+def is_chromedriver_on_path():
+    paths = os.environ["PATH"].split(os.pathsep)
+    for path in paths:
+        if os.path.exists(path + '/' + "chromedriver"):
+            return True
+    return False
 
 
 def invalid_run_command():
@@ -10,9 +30,11 @@ def invalid_run_command():
     exp += "        seleniumbase grid-node {start|stop|restart} [OPTIONS]\n"
     exp += "  Options:\n"
     exp += "        --hub=[HUB_IP] (The Grid Hub IP Address to connect to.)\n"
-    exp += "              (Default: 127.0.0.1 if not set)\n"
+    exp += "                       (Default: 127.0.0.1 if not set)\n"
     exp += "        -v, --verbose  (Increase verbosity of logging output.)\n"
-    exp += "              (Default: Quiet logging / not verbose.)\n"
+    exp += "                       (Default: Quiet logging / not verbose.)\n"
+    exp += "  Example:\n"
+    exp += "        seleniumbase grid-node start --hub=127.0.0.1\n"
     exp += "  Output:\n"
     exp += "        Controls the Selenium Grid Node, which serves as a\n"
     exp += "        worker machine for your Selenium Grid Hub Server.\n"
@@ -21,10 +43,20 @@ def invalid_run_command():
 
 
 def main():
+    # Install chromedriver if not installed
+    if not is_chromedriver_on_path():
+        from seleniumbase.console_scripts import sb_install
+        sys_args = sys.argv  # Save a copy of current sys args
+        print("\nWarning: chromedriver not found. Installing now:")
+        sb_install.main(override="chromedriver")
+        sys.argv = sys_args  # Put back the original sys args
+
     dir_path = os.path.dirname(os.path.realpath(__file__))
     num_args = len(sys.argv)
     if sys.argv[0].split('/')[-1] == "seleniumbase" or (
-            sys.argv[0].split('\\')[-1] == "seleniumbase"):
+            sys.argv[0].split('\\')[-1] == "seleniumbase") or (
+            sys.argv[0].split('/')[-1] == "sbase") or (
+            sys.argv[0].split('\\')[-1] == "sbase"):
         if num_args < 3:
             invalid_run_command()
     else:
@@ -61,13 +93,14 @@ def main():
     file.close()
 
     from seleniumbase.utilities.selenium_grid import download_selenium_server
-    download_selenium_server.main()  # Nothing happens if already exists
+    download_selenium_server.main(force_download=False)  # Only runs if needed
 
     if "linux" in sys.platform or "darwin" in sys.platform:
         if grid_hub_command == "start":
             subprocess.check_call(dir_path + "/grid-node start", shell=True)
         elif grid_hub_command == "restart":
-            subprocess.check_call(dir_path + "/grid-node restart", shell=True)
+            subprocess.check_call(dir_path + "/grid-node stop", shell=True)
+            subprocess.check_call(dir_path + "/grid-node start", shell=True)
         elif grid_hub_command == "stop":
             subprocess.check_call(dir_path + "/grid-node stop", shell=True)
         else:
@@ -92,7 +125,7 @@ def main():
             subprocess.check_call(shell_command, shell=True)
         elif grid_hub_command == "stop":
             print("")
-            print("To stop the Grid node, use CTRL-C inside the server shell!")
+            print("To stop the Grid node, use CTRL+C inside the server shell!")
             print("")
         else:
             invalid_run_command()

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Converts a Selenium IDE recording that was exported as a Python WebDriver
 unittest file into SeleniumBase Python file.
@@ -29,6 +30,11 @@ def main():
         if num_args < 3 or num_args > 3:
             raise Exception('\n\n* INVALID RUN COMMAND! *  Usage:\n'
                             '"seleniumbase convert %s"\n' % expected_arg)
+    elif sys.argv[0].split('/')[-1] == "sbase" or (
+            sys.argv[0].split('\\')[-1] == "sbase"):
+        if num_args < 3 or num_args > 3:
+            raise Exception('\n\n* INVALID RUN COMMAND! *  Usage:\n'
+                            '"sbase convert %s"\n' % expected_arg)
     else:
         if num_args < 2 or num_args > 2:
             raise Exception('\n\n* INVALID RUN COMMAND! *  Usage:\n'
@@ -50,9 +56,8 @@ def main():
     uses_keys = False
     uses_select = False
 
-    f = open(webdriver_python_file, 'r')
-    all_code = f.read()
-    f.close()
+    with open(webdriver_python_file, 'r', encoding='utf-8') as f:
+        all_code = f.read()
     if "def test_" not in all_code:
         raise Exception("\n\n`%s` is not a valid Python unittest.TestCase "
                         "file!\n\nExpecting: %s\n\n"
@@ -111,7 +116,7 @@ def main():
         if len(line.strip()) == 0:
             continue
 
-        # If .clear(), skip because .update_text() already does this
+        # If .clear(), skip because self.type() already does this
         if line.strip().endswith(".clear()"):
             continue
 
@@ -151,9 +156,29 @@ def main():
             r'''\.click\(\)\s*$''', line)
         if data:
             whitespace = data.group(1)
-            selector = '#%s' % data.group(2)
+            selector = '#%s' % data.group(2).replace('#', '\\#')
             selector = selector.replace('[', '\\[').replace(']', '\\]')
-            command = '''%sself.click('%s')''' % (whitespace, selector)
+            selector = selector.replace('.', '\\.')
+            raw = ""
+            if "\\[" in selector or "\\]" in selector or "\\." in selector:
+                raw = "r"
+            command = '''%sself.click(%s'%s')''' % (whitespace, raw, selector)
+            seleniumbase_lines.append(command)
+            continue
+
+        # Handle .find_element_by_id() + .submit()
+        data = re.match(
+            r'''^(\s*)driver\.find_element_by_id\(\"(\S+)\"\)'''
+            r'''\.submit\(\)\s*$''', line)
+        if data:
+            whitespace = data.group(1)
+            selector = '#%s' % data.group(2).replace('#', '\\#')
+            selector = selector.replace('[', '\\[').replace(']', '\\]')
+            selector = selector.replace('.', '\\.')
+            raw = ""
+            if "\\[" in selector or "\\]" in selector or "\\." in selector:
+                raw = "r"
+            command = '''%sself.submit(%s'%s')''' % (whitespace, raw, selector)
             seleniumbase_lines.append(command)
             continue
 
@@ -163,11 +188,15 @@ def main():
             r'''\.send_keys\(\"([\S\s]+)\"\)\s*$''', line)
         if data:
             whitespace = data.group(1)
-            selector = '#%s' % data.group(2)
+            selector = '#%s' % data.group(2).replace('#', '\\#')
             selector = selector.replace('[', '\\[').replace(']', '\\]')
+            selector = selector.replace('.', '\\.')
+            raw = ""
+            if "\\[" in selector or "\\]" in selector or "\\." in selector:
+                raw = "r"
             text = data.group(3)
-            command = '''%sself.update_text('%s', '%s')''' % (
-                whitespace, selector, text)
+            command = '''%sself.type(%s'%s', '%s')''' % (
+                whitespace, raw, selector, text)
             seleniumbase_lines.append(command)
             continue
 
@@ -178,11 +207,15 @@ def main():
         if data:
             uses_keys = True
             whitespace = data.group(1)
-            selector = '#%s' % data.group(2)
+            selector = '#%s' % data.group(2).replace('#', '\\#')
             selector = selector.replace('[', '\\[').replace(']', '\\]')
+            selector = selector.replace('.', '\\.')
+            raw = ""
+            if "\\[" in selector or "\\]" in selector or "\\." in selector:
+                raw = "r"
             key = 'Keys.%s' % data.group(3)
-            command = '''%sself.send_keys('%s', %s)''' % (
-                whitespace, selector, key)
+            command = '''%sself.send_keys(%s'%s', %s)''' % (
+                whitespace, raw, selector, key)
             seleniumbase_lines.append(command)
             continue
 
@@ -197,6 +230,17 @@ def main():
             seleniumbase_lines.append(command)
             continue
 
+        # Handle .find_element_by_name() + .submit()
+        data = re.match(
+            r'''^(\s*)driver\.find_element_by_name\(\"(\S+)\"\)'''
+            r'''\.submit\(\)\s*$''', line)
+        if data:
+            whitespace = data.group(1)
+            selector = '[name="%s"]' % data.group(2)
+            command = '''%sself.submit('%s')''' % (whitespace, selector)
+            seleniumbase_lines.append(command)
+            continue
+
         # Handle .find_element_by_name() + .send_keys()
         data = re.match(
             r'''^(\s*)driver\.find_element_by_name\(\"(\S+)\"\)'''
@@ -205,7 +249,7 @@ def main():
             whitespace = data.group(1)
             selector = '[name="%s"]' % data.group(2)
             text = data.group(3)
-            command = '''%sself.update_text('%s', '%s')''' % (
+            command = '''%sself.type('%s', '%s')''' % (
                 whitespace, selector, text)
             seleniumbase_lines.append(command)
             continue
@@ -237,6 +281,19 @@ def main():
             seleniumbase_lines.append(command)
             continue
 
+        # Handle .find_element_by_css_selector() + .submit()
+        data = re.match(
+            r'''^(\s*)driver\.find_element_by_css_selector\(\"([\S\s]+)\"\)'''
+            r'''\.submit\(\)\s*$''', line)
+        if data:
+            whitespace = data.group(1)
+            selector = '%s' % data.group(2)
+            command = '''%sself.submit('%s')''' % (whitespace, selector)
+            if command.count('\\"') == command.count('"'):
+                command = command.replace('\\"', '"')
+            seleniumbase_lines.append(command)
+            continue
+
         # Handle .find_element_by_css_selector() + .send_keys()
         data = re.match(
             r'''^(\s*)driver\.find_element_by_css_selector\(\"([\S\s]+)\"\)'''
@@ -245,7 +302,7 @@ def main():
             whitespace = data.group(1)
             selector = '%s' % data.group(2)
             text = data.group(3)
-            command = '''%sself.update_text('%s', '%s')''' % (
+            command = '''%sself.type('%s', '%s')''' % (
                 whitespace, selector, text)
             if command.count('\\"') == command.count('"'):
                 command = command.replace('\\"', '"')
@@ -276,7 +333,7 @@ def main():
             whitespace = data.group(1)
             selector = '%s' % data.group(2)
             text = data.group(3)
-            command = '''%sself.update_text("%s", '%s')''' % (
+            command = '''%sself.type("%s", '%s')''' % (
                 whitespace, selector, text)
             if command.count('\\"') == command.count('"'):
                 command = command.replace('\\"', '"')
@@ -308,7 +365,7 @@ def main():
             whitespace = data.group(1)
             selector = '%s' % data.group(2)
             visible_text = '%s' % data.group(3)
-            command = '''%sself.pick_select_option_by_text('%s', '%s')''' % (
+            command = '''%sself.select_option_by_text('%s', '%s')''' % (
                 whitespace, selector, visible_text)
             if command.count('\\"') == command.count('"'):
                 command = command.replace('\\"', '"')
@@ -322,10 +379,15 @@ def main():
             r'''\"([\S\s]+)\"\)\s*$''', line)
         if data:
             whitespace = data.group(1)
-            selector = '#%s' % data.group(2)
+            selector = '#%s' % data.group(2).replace('#', '\\#')
+            selector = selector.replace('[', '\\[').replace(']', '\\]')
+            selector = selector.replace('.', '\\.')
+            raw = ""
+            if "\\[" in selector or "\\]" in selector or "\\." in selector:
+                raw = "r"
             visible_text = '%s' % data.group(3)
-            command = '''%sself.pick_select_option_by_text('%s', '%s')''' % (
-                whitespace, selector, visible_text)
+            command = '''%sself.select_option_by_text(%s'%s', '%s')''' % (
+                whitespace, raw, selector, visible_text)
             if command.count('\\"') == command.count('"'):
                 command = command.replace('\\"', '"')
             seleniumbase_lines.append(command)
@@ -340,7 +402,7 @@ def main():
             whitespace = data.group(1)
             selector = '%s' % data.group(2)
             visible_text = '%s' % data.group(3)
-            command = '''%sself.pick_select_option_by_text("%s", '%s')''' % (
+            command = '''%sself.select_option_by_text("%s", '%s')''' % (
                 whitespace, selector, visible_text)
             if command.count('\\"') == command.count('"'):
                 command = command.replace('\\"', '"')
@@ -356,7 +418,7 @@ def main():
             whitespace = data.group(1)
             selector = '[name="%s"]' % data.group(2)
             visible_text = '%s' % data.group(3)
-            command = '''%sself.pick_select_option_by_text('%s', '%s')''' % (
+            command = '''%sself.select_option_by_text('%s', '%s')''' % (
                 whitespace, selector, visible_text)
             if command.count('\\"') == command.count('"'):
                 command = command.replace('\\"', '"')
@@ -370,11 +432,35 @@ def main():
         if data:
             whitespace = data.group(1)
             xpath = '%s' % data.group(2)
+            if './/*[normalize-space(text())' in xpath and (
+                    "normalize-space(.)='" in xpath):
+                x_match = re.match(
+                    r'''^[\S\s]+normalize-'''
+                    r'''space\(\.\)=\'([\S\s]+)\'\]\)[\S\s]+''', xpath)
+                if x_match:
+                    partial_link_text = x_match.group(1)
+                    xpath = "partial_link=%s" % partial_link_text
             uni = ""
             if '(u"' in line:
                 uni = "u"
                 has_unicode = True
             command = '''%sself.click(%s"%s")''' % (
+                whitespace, uni, xpath)
+            seleniumbase_lines.append(command)
+            continue
+
+        # Handle .find_element_by_xpath() + .submit()
+        data = re.match(
+            r'''^(\s*)driver\.find_element_by_xpath\(u?\"([\S\s]+)\"\)'''
+            r'''\.submit\(\)\s*$''', line)
+        if data:
+            whitespace = data.group(1)
+            xpath = '%s' % data.group(2)
+            uni = ""
+            if '(u"' in line:
+                uni = "u"
+                has_unicode = True
+            command = '''%sself.submit(%s"%s")''' % (
                 whitespace, uni, xpath)
             seleniumbase_lines.append(command)
             continue
@@ -594,7 +680,30 @@ def main():
                 data2 = re.match(regex_string, lines[line_num + 1])
                 if data2:
                     continue
-                regex_string = (r'''^\s*self.update_text\(["|']'''
+                regex_string = (r'''^\s*self.type\(["|']'''
+                                '' + selector + ''
+                                '' + r'''["|'], [\S\s]+\)\s*$''')
+                data2 = re.match(regex_string, lines[line_num + 1])
+                if data2:
+                    continue
+        seleniumbase_lines.append(lines[line_num])
+
+    # Remove duplicate functionality: "click(SEL)" before "type(SEL, TEXT)"
+    lines = seleniumbase_lines
+    seleniumbase_lines = []
+    num_lines = len(lines)
+    for line_num in range(len(lines)):
+        data = re.match(
+            r'''^\s*self.click'''
+            r'''\((["|'])([\S\s]+)(["|'])\)'''
+            r'''\s*$''', lines[line_num])
+        if data:
+            # quote_type = data.group(1)
+            selector = data.group(2)
+            selector = re.escape(selector)
+            selector = js_utils.escape_quotes_if_needed(selector)
+            if int(line_num) < num_lines - 1:
+                regex_string = (r'''^\s*self.type\(["|']'''
                                 '' + selector + ''
                                 '' + r'''["|'], [\S\s]+\)\s*$''')
                 data2 = re.match(regex_string, lines[line_num + 1])
@@ -625,7 +734,7 @@ def main():
         seleniumbase_lines.append(lines[line_num])
 
     seleniumbase_code = ""
-    if has_unicode:
+    if has_unicode and sys.version_info[0] < 3:
         seleniumbase_code = "# -*- coding: utf-8 -*-\n"
     if uses_keys:
         seleniumbase_code += (
@@ -641,7 +750,7 @@ def main():
     # Create SeleniumBase test file
     base_file_name = webdriver_python_file.split('.py')[0]
     converted_file_name = base_file_name + "_SB.py"
-    out_file = codecs.open(converted_file_name, "w+")
+    out_file = codecs.open(converted_file_name, "w+", encoding='utf-8')
     out_file.writelines(seleniumbase_code)
     out_file.close()
     print('\n>>> [%s] was created from [%s]\n' % (

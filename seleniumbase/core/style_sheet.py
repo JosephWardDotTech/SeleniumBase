@@ -102,7 +102,7 @@ bt_backdrop_style = (
     '''
     .tour-tour-element {
         box-shadow: 0 0 0 99999px rgba(0, 0, 0, 0.20);
-        pointer-events:  none !important;
+        pointer-events: none !important;
         z-index: 9999;
     }
 
@@ -111,8 +111,31 @@ bt_backdrop_style = (
     }
 
     .tour-tour {
-        pointer-events:  auto;
+        pointer-events: auto;
         z-index: 9999;
+    }
+    ''')
+
+# DriverJS Tour Backdrop Style
+dt_backdrop_style = (
+    '''
+    .driver-fix-stacking {
+        pointer-events: none !important;
+    }
+    #driver-popover-item, .popover-class {
+        pointer-events: auto !important;
+    }
+    ''')
+
+messenger_style = (
+    '''
+    .messenger-message-inner {
+        font-family: "Proxima Nova","proxima-nova",Arial,sans-serif !important;
+        font-size: 17px;
+    }
+    ul.messenger-theme-flat {
+        box-shadow: 2px 2px 5px 2px rgba(16, 128, 120, 0.34),
+        2px 2px 10px 2px rgba(16, 128, 120, 0.28) !important;
     }
     ''')
 
@@ -139,13 +162,13 @@ sh_backdrop_style = (
     '''
     body.shepherd-active .shepherd-target.shepherd-enabled {
         box-shadow: 0 0 0 99999px rgba(0, 0, 0, 0.20);
-        pointer-events:  none !important;
+        pointer-events: none !important;
         z-index: 9999;
     }
 
     body.shepherd-active .shepherd-orphan {
         box-shadow: 0 0 0 99999px rgba(0, 0, 0, 0.20);
-        pointer-events:  auto;
+        pointer-events: auto;
         z-index: 9999;
     }
 
@@ -160,11 +183,11 @@ sh_backdrop_style = (
     }
 
     body.shepherd-active .shepherd-step {
-        pointer-events:  auto;
+        pointer-events: auto;
         z-index: 9999;
     }
 
     body.shepherd-active {
-        pointer-events:  none !important;
+        pointer-events: none !important;
     }
     ''')

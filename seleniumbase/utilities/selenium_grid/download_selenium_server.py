@@ -1,6 +1,7 @@
 """ Downloads the Selenium Server JAR file and renames it. """
 
 import os
+import shutil
 import sys
 if sys.version_info[0] == 2:
     from urllib import urlopen
@@ -8,8 +9,8 @@ else:
     from urllib.request import urlopen
 
 SELENIUM_JAR = ("http://selenium-release.storage.googleapis.com"
-                "/3.14/selenium-server-standalone-3.14.0.jar")
-JAR_FILE = "selenium-server-standalone-3.14.0.jar"
+                "/3.141/selenium-server-standalone-3.141.59.jar")
+JAR_FILE = "selenium-server-standalone-3.141.59.jar"
 RENAMED_JAR_FILE = "selenium-server-standalone.jar"
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -39,15 +40,15 @@ def is_available_locally():
     return os.path.isfile(FULL_EXPECTED_PATH)
 
 
-def main():
-    if not is_available_locally():
+def main(force_download=True):
+    if force_download or not is_available_locally():
         download_selenium_server()
         for filename in os.listdir("."):
             # If multiple copies exist, keep only the latest and rename it.
             if filename.startswith("selenium-server-standalone-"):
-                os.rename(filename, RENAMED_JAR_FILE)
+                shutil.move(filename, RENAMED_JAR_FILE)
                 if FULL_DOWNLOAD_PATH != FULL_EXPECTED_PATH:
-                    os.rename(RENAMED_JAR_FILE, FULL_EXPECTED_PATH)
+                    shutil.move(RENAMED_JAR_FILE, FULL_EXPECTED_PATH)
         print("%s\n" % FULL_EXPECTED_PATH)
 
 

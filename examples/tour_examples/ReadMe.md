@@ -1,25 +1,47 @@
-## SeleniumBase Website Tours
+<h3 align="left"><img src="https://seleniumbase.io/cdn/img/sb_logo_b.png" alt="SeleniumBase" width="320" /></h3>
 
-SeleniumBase Tours utilize your choice of 4 different Javascript libraries for creating & running tours, demos, and walkthroughs on any website: **[Shepherd](https://shipshapecode.github.io/shepherd/docs/welcome/)**, **[Bootstrap Tour](http://bootstraptour.com/)**, **[IntroJS](https://introjs.com/)**, and **[Hopscotch](http://linkedin.github.io/hopscotch/)**. Choose your favorite one to use!
+## Interactive Product Tours
 
-Example tour:
+SeleniumBase Tours utilize 5 JavaScript libraries for creating interactive walkthroughs on any website:<br>**[Shepherd](https://shepherdjs.dev/)**, **[Bootstrap Tour](http://bootstraptour.com/)**, **[IntroJS](https://introjs.com/)**, **[DriverJS](https://kamranahmed.info/driver.js/)**, and **[Hopscotch](https://linkedinattic.github.io/hopscotch/)**.
 
-<img src="https://cdn2.hubspot.net/hubfs/100006/google_tour_3.gif" title="SeleniumBase Tour of Google" height="260"><br>
+<b>Example tour: (with autoplay)</b>
+
+<img src="https://seleniumbase.io/cdn/gif/driverjs_tour.gif" title="SeleniumBase Tour of Google"><br>
+
+[SeleniumBase driverjs_maps_tour.py](https://github.com/seleniumbase/SeleniumBase/blob/master/examples/tour_examples/driverjs_maps_tour.py)
+
+```bash
+cd examples/tour_examples
+pytest driverjs_maps_tour.py
+```
+
+<b>Here's a longer example:</b>
+
+<img src="https://seleniumbase.io/cdn/gif/google_tour_3.gif" title="SeleniumBase Tour of Google"><br>
+
+[SeleniumBase google_tour.py](https://github.com/seleniumbase/SeleniumBase/blob/master/examples/tour_examples/google_tour.py)
+
+```bash
+cd examples/tour_examples
+pytest google_tour.py
+```
+
+(From [GitHub => SeleniumBase/examples/tour_examples](https://github.com/seleniumbase/SeleniumBase/blob/master/examples/tour_examples))
 
 
 ### Creating a new tour:
 
-By default, Shepherd JS is used when creating a tour with:
-
-``self.create_tour()``
-
-You can also do:
+#### To create a tour utilizing the Shepherd Library, use one of the following:
 
 ``self.create_shepherd_tour()``
 
-With the ``create_tour()`` and ``create_shepherd_tour()`` methods, you can pass a default theme to change the look & feel of the tour steps. Valid themes for Shepherd Tours are ``dark``, ``light`` / ``arrows``, ``default``, ``square``, and ``square-dark``.
+OR
 
-To create a tour utilizing the Bootstrap Tour Library, you can use either of the following:
+``self.create_tour(theme="shepherd")``
+
+You can pass a custom theme to change the look & feel of Shepherd tours. Valid themes for Shepherd Tours are ``dark``, ``light`` / ``arrows``, ``default``, ``square``, and ``square-dark``.
+
+#### To create a tour utilizing the Bootstrap Tour Library, use one of the following:
 
 ``self.create_bootstrap_tour()``
 
@@ -27,7 +49,7 @@ OR
 
 ``self.create_tour(theme="bootstrap")``
 
-To create a tour utilizing the Intro JS Library, you can use either of the following:
+#### To create a tour utilizing the IntroJS Library, use one of the following:
 
 ``self.create_introjs_tour()``
 
@@ -35,7 +57,15 @@ OR
 
 ``self.create_tour(theme="introjs")``
 
-To create a tour utilizing the Hopscotch JS Library, you can use either of the following:
+#### To create a tour utilizing the DriverJS Library, use one of the following:
+
+``self.create_driverjs_tour()``
+
+OR
+
+``self.create_tour(theme="driverjs")``
+
+#### To create a tour utilizing the Hopscotch Library, use one of the following:
 
 ``self.create_hopscotch_tour()``
 
@@ -45,7 +75,7 @@ OR
 
 ### Adding a step to a tour:
 
-To add a tour step, use the following: (Only ``message`` is required. The other args are optional.)
+#### To add a tour step, use the following:
 
 ``self.add_tour_step(message, css_selector, title, alignment, theme)``
 
@@ -75,24 +105,20 @@ class MyTourClass(BaseCase):
         self.wait_for_element('input[title="Search"]')
 
         self.create_tour(theme="dark")
-        self.add_tour_step(
-            "Click to begin the Google Tour!", title="SeleniumBase Tours")
-        self.add_tour_step(
-            "Type in your search query here.", 'input[title="Search"]')
+        self.add_tour_step("Welcome to Google!", title="SeleniumBase Tours")
+        self.add_tour_step("Type in your query here.", 'input[title="Search"]')
         self.play_tour()
 
         self.highlight_update_text('input[title="Search"]', "Google")
         self.wait_for_element('[role="listbox"]')  # Wait for autocomplete
 
         self.create_tour(theme="light")
-        self.add_tour_step(
-            "Then click here to search.", 'input[value="Google Search"]')
-        self.add_tour_step(
-            "Or press [ENTER] after typing a query here.", '[title="Search"]')
+        self.add_tour_step("Then click to search.", '[value="Google Search"]')
+        self.add_tour_step("Or press [ENTER] after entry.", '[title="Search"]')
         self.play_tour()
 ```
 
-#### This example was taken from [google_tour.py](https://github.com/seleniumbase/SeleniumBase/blob/master/examples/tour_examples/google_tour.py), which you can run from the ``examples/tour_examples`` folder with the following command:
+#### This example is from [google_tour.py](https://github.com/seleniumbase/SeleniumBase/blob/master/examples/tour_examples/google_tour.py), which you can run from the ``examples/tour_examples`` folder with the following command:
 
 ```bash
 pytest google_tour.py
@@ -100,7 +126,7 @@ pytest google_tour.py
 
 ### Exporting a Tour:
 
-If you want to save the tour you created as a Javascript file, use:
+If you want to save the tour you created as a JavaScript file, use:
 
 ``self.export_tour()``
 
@@ -108,4 +134,4 @@ OR
 
 ``self.export_tour(name=None, filename="my_tour.js")``
 
-(``name`` is optional, needed only if you were creating multiple tours at once. ``filename`` is the name of the file to save the Javascript to.) Once you've exported your tour, you can use it outside of SeleniumBase. You can even copy the tour's Javascript code to the Console of your web browser to play the tour from there (you need to be on the correct web page for it to work).
+(``name`` is optional unless you gave custom names to your tours when you created them. ``filename`` is the name of the file to save the JavaScript to.) Once you've exported your tour, you can use it outside of SeleniumBase. You can even copy the tour's JavaScript code to the Console of your web browser to play the tour from there (you need to be on the correct web page for it to work).
